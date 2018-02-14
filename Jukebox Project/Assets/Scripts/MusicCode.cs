@@ -9,6 +9,8 @@ using UnityEngine.Audio;
 [RequireComponent(typeof(AudioSource))]
 public class MusicCode : MonoBehaviour {
 
+    public GameObject itemPrefab; //ma liste d'élements clips
+
     public AudioSource source; //ma source music
 
     public AudioClip[] clips; //les musiques contenant les info 
@@ -32,6 +34,16 @@ public class MusicCode : MonoBehaviour {
         actuelMusic = 0; 
         Play(); //pour démarrer directement
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
+        GameObject container = GameObject.Find("Elements");
+        foreach (AudioClip clip in clips)
+        {
+            Debug.Log(clip.name);
+            GameObject item = Instantiate(itemPrefab) as GameObject;
+            item.name = clip.name;
+            item.GetComponentInChildren<Text>().text = clip.name;
+            item.transform.parent = container.transform;
+        }
+
     }
 
     //Partie Coroutine :
