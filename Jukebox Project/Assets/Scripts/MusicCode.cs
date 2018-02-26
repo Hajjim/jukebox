@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Audio;
-
-
+using System.IO;
 
 [RequireComponent(typeof(AudioSource))]
 public class MusicCode : MonoBehaviour {
@@ -13,7 +12,8 @@ public class MusicCode : MonoBehaviour {
 
     public AudioSource source; //ma source music
 
-    public AudioClip[] clips; //les musiques contenant les info 
+    //public AudioClip[] clips; //les musiques contenant les info 
+    public List<AudioClip> clips = new List<AudioClip>(); //les musiques contenant les info 
     private int actuelMusic;
     public Slider TimerGraphique;
 
@@ -26,15 +26,40 @@ public class MusicCode : MonoBehaviour {
     private int secondes;
     private int minutes;
 
-
+    // ajout pour prendre dans repertoire
+    private FileInfo[] files;
+    string path = "./"; // chemin RELATIF d'où l'application COMPILEE tourne. Pas le mode editeur sur unity. (donc quand j'aurai l'apk, ça se trouvera sur l'endroit même)
+    // -----
     
     void Start()
     {
         source = GetComponent<AudioSource>(); //création d'un composant Audiosource
         actuelMusic = 0; 
-        Play(); //pour démarrer directement
+        //Play(); //pour démarrer directement
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
         GameObject container = GameObject.Find("Elements");
+        // --------------------------
+        if (Application.isEditor)
+        {
+            path = "C:/Users/hajji/OneDrive/Projects";
+        }
+        DirectoryInfo info = new DirectoryInfo(path);
+        files = info.GetFiles();
+
+        foreach (FileInfo f in files)
+        {
+            if (f.FullName.IndexOf("wav") > -1)
+            {
+                WWW www = new WWW("file://" + f.FullName);
+                AudioClip myAudioClip = www.GetAudioClip();
+                while (myAudioClip.loadState != AudioDataLoadState.Loaded) { } //ne fait rien tant que c'est pas load 
+                AudioClip clip = www.GetAudioClip(false); //useless pour le 3D donc false
+                //string[] parts = path.Split('\\'); 
+                clip.name = Path.GetFileNameWithoutExtension(f.Name); //sans l'extension .wav
+                clips.Add(clip);
+            }
+        }
+        // --------------------------
         foreach (AudioClip clip in clips)
         {
             Debug.Log(clip.name);
@@ -43,7 +68,7 @@ public class MusicCode : MonoBehaviour {
             item.GetComponentInChildren<Text>().text = clip.name;
             item.transform.parent = container.transform;
         }
-
+        Play();
     }
 
     //Partie Coroutine :
@@ -75,7 +100,7 @@ public class MusicCode : MonoBehaviour {
             //actuelMusic--;
             if (actuelMusic < 0) 
             {   //boucle la music
-                actuelMusic = clips.Length - 1;
+                actuelMusic = clips.Count - 1; //au lieu de Length, j'utilise count car liste 
             }
             source.clip = clips[actuelMusic];
             //slider taille total en fonction de l'audiosource
@@ -100,7 +125,7 @@ public class MusicCode : MonoBehaviour {
         StopCoroutine("WaitMusicEnd"); //je met un stop sur la coroutine
         actuelMusic++; //incrémentation pour savoir où on se situe dans la liste
         //dans le cas où j'arrive à la fin de la liste
-        if (actuelMusic > clips.Length - 1)
+        if (actuelMusic > clips.Count - 1)
         {
             actuelMusic = 0;
         }
