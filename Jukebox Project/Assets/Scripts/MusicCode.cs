@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Networking;
+using UnityEngine.Networking.NetworkSystem;
 using UnityEngine.Audio;
 using System.IO;
 
@@ -26,6 +28,7 @@ public class MusicCode : MonoBehaviour
     private int secondes;
     private int minutes;
     private int numbermusic=0;
+    WWW url;
 
     // ajout pour prendre dans repertoire
     private FileInfo[] files;
@@ -42,6 +45,9 @@ public class MusicCode : MonoBehaviour
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
         GameObject container = GameObject.Find("Elements");
         // --------------------------
+        NetworkServer.Listen(25000);
+        NetworkServer.RegisterHandler(888, ServerReceiveMessage);
+        // -------------------------
 
         /* if (Application.isEditor)
          {
@@ -60,18 +66,36 @@ public class MusicCode : MonoBehaviour
             item.GetComponentInChildren<Text>().text = Path.GetFileNameWithoutExtension(chemin);
             item.transform.parent = container.transform;
         }
-            playMusic(numbermusic);
+
+        // StartCoroutine("playMusic(numbermusic)");
+        playMusic(numbermusic);
 
         // --------------------------
 
 
     }
 
+   /* IEnumerator playMusic(int i)
+    {
+        url = new WWW("file://" + fileList[i]);
+
+        musicAJouer = url.GetAudioClip(false);
+        yield return url;
+        //useless pour le 3D donc false
+
+        //while (musicAJouer.loadState != AudioDataLoadState.Loaded){}
+
+        //musicAJouer = url.GetAudioClip(false); 
+        //string[] parts = path.Split('\\'); 
+        musicAJouer.name = Path.GetFileNameWithoutExtension(fileList[i]); //sans l'extension .wav
+        Play(musicAJouer);
+    }*/
     private void playMusic(int i)
     {
         WWW url = new WWW("file://" + fileList[i]);
         musicAJouer = url.GetAudioClip(false);//useless pour le 3D donc false
-        while (musicAJouer.loadState != AudioDataLoadState.Loaded) { } //ne fait rien tant que c'est pas load 
+    
+        while (musicAJouer.loadState != AudioDataLoadState.Loaded){}
         //musicAJouer = url.GetAudioClip(false); 
         //string[] parts = path.Split('\\'); 
         musicAJouer.name = Path.GetFileNameWithoutExtension(fileList[i]); //sans l'extension .wav
@@ -82,7 +106,6 @@ public class MusicCode : MonoBehaviour
     /* Un coroutine est une fonction qui a cette possibilité d’être « mise en pause » à un
     certain endroit de l’exécution (et rendre la main à Unity) et reprise plus tard, au calcul de
     la frame suivante ou après un certain temps.*/
-
     IEnumerator WaitMusicEnd()  //Une co-routine renvoie toujours un type spécial : IEnumarator
     {
        
@@ -140,6 +163,7 @@ public class MusicCode : MonoBehaviour
             actuelMusic = 0;
         }*/
         music.UnloadAudioData(); //désallouer
+        //StartCoroutine("playMusic(k)");
         playMusic(k);
 
        /* source.clip = music;
@@ -172,4 +196,7 @@ public class MusicCode : MonoBehaviour
         //ensuite j'appel ma variable minute seconde qui utilise le playTimer = temps déjà joué
         clipActuelTime.text = minutes + ":" + secondes.ToString("D2");
     }
+
+
+   
 }
