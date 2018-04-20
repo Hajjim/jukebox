@@ -1,4 +1,4 @@
 sceneSetups:
-- path: Assets/Scenes/Client.unity
+- path: Assets/Scenes/JukeBox.unity
   isLoaded: 1
   isActive: 1

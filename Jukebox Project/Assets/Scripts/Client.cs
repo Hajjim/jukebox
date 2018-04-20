@@ -33,10 +33,18 @@ public class Client : MonoBehaviour
     void Connect()
     {
         // Je met l'ipv4 ici (vérifier le wifi)
-        client.Connect("192.168.56.1", 25000);
+        client.Connect("172.30.40.61", 25000);
     }
 
-   
+    public void SendCommand(string command)
+    {
+        if (client.isConnected)
+        {
+            StringMessage msg = new StringMessage();
+            msg.value = command;
+            client.Send(888, msg);
+        }
+    }
 
     // Update is called once per frame
     void Update()

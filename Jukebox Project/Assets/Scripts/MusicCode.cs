@@ -31,11 +31,11 @@ public class MusicCode : MonoBehaviour
     WWW url;
 
     // ajout pour prendre dans repertoire
-    private FileInfo[] files;
+    //private FileInfo[] files;
     // string path = "./"; // chemin RELATIF d'où l'application COMPILEE tourne. Pas le mode editeur sur unity. (donc quand j'aurai l'apk, ça se trouvera sur l'endroit même)
     // -----
     static string path = "C:/Users/hajji/OneDrive/Projects/"; // C:\Users\hajji\Documents\
-    string[] fileList = Directory.GetFiles(path, "*.wav", SearchOption.TopDirectoryOnly);
+    string[] fileList = Directory.GetFiles(path, "*.wav", SearchOption.TopDirectoryOnly); //affichage par ordre alphabétique
     AudioClip musicAJouer;
 
     void Start()
@@ -57,15 +57,20 @@ public class MusicCode : MonoBehaviour
          files = info.GetFiles();*/
 
         //Charge liste string
+        
 
         foreach (string chemin in fileList)
         {
             Debug.Log(chemin.Replace(path, "").Replace(".wav", ""));
             GameObject item = Instantiate(itemPrefab) as GameObject;
             item.name = Path.GetFileNameWithoutExtension(chemin);
+            // item.GetComponentInChildren<Text>().text = Path.GetFileNameWithoutExtension(chemin) + "     " + 0;
             item.GetComponentInChildren<Text>().text = Path.GetFileNameWithoutExtension(chemin);
+          //  item.GetComponentInChildren<Text>().text = "0";
             item.transform.parent = container.transform;
         }
+
+
 
         // StartCoroutine("playMusic(numbermusic)");
         playMusic(numbermusic);
@@ -126,6 +131,7 @@ public class MusicCode : MonoBehaviour
         numbermusic = numbermusic % fileList.Length; // 1 2 3 ... 1 2 3 ... 1 2 3 ... (opti)    
         Suivant(musicAJouer, numbermusic);
     }
+   
 
 
     public void Play(AudioClip music)
@@ -198,5 +204,41 @@ public class MusicCode : MonoBehaviour
     }
 
 
-   
+    //Partie Réseau ----------------------------------------------------------------------------
+
+    private void ServerReceiveMessage(NetworkMessage message)
+    {
+        StringMessage msg = new StringMessage();
+        msg.value = message.ReadMessage<StringMessage>().value;
+        Debug.Log(msg);
+        Debug.Log(msg.value);
+        switch (msg.value)
+        {
+            case "mute":
+                Mute();
+                break;
+            case "vote":
+                Vote();
+                break;
+        }
+    }
+
+    public void Mute()
+    {
+        if (source.isPlaying)
+        {
+            source.mute = !source.mute;
+        }
+    }
+
+    
+    Dictionary<string, int> voteCounts;
+
+    public void Vote()
+    {
+        foreach (string music in fileList)
+        {
+            voteCounts[music] += 1;
+        }
+    }
 }
