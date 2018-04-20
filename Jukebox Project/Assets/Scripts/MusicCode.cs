@@ -6,6 +6,11 @@ using UnityEngine.Networking;
 using UnityEngine.Networking.NetworkSystem;
 using UnityEngine.Audio;
 using System.IO;
+using System.Threading;
+using System.Net.Sockets;
+using System.Net;
+using System;
+using System.Text;
 
 [RequireComponent(typeof(AudioSource))]
 public class MusicCode : MonoBehaviour
@@ -36,7 +41,27 @@ public class MusicCode : MonoBehaviour
     // -----
     static string path = "C:/Users/hajji/OneDrive/Projects/"; // C:\Users\hajji\Documents\
     string[] fileList = Directory.GetFiles(path, "*.wav", SearchOption.TopDirectoryOnly); //affichage par ordre alphabétique
+    string listSongsNames;
     AudioClip musicAJouer;
+
+
+    #region private members 	
+    /// <summary> 	
+    /// TCPListener to listen for incomming TCP connection 	
+    /// requests. 	
+    /// </summary> 	
+    private TcpListener tcpListener;
+    /// <summary> 
+    /// Background thread for TcpServer workload. 	
+    /// </summary> 	
+    private Thread tcpListenerThread;
+    /// <summary> 	
+    /// Create handle to connected tcp client. 	
+    /// </summary> 	
+    private TcpClient connectedTcpClient;
+    #endregion
+
+
 
     void Start()
     {
@@ -45,8 +70,11 @@ public class MusicCode : MonoBehaviour
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
         GameObject container = GameObject.Find("Elements");
         // --------------------------
-        NetworkServer.Listen(25000);
-        NetworkServer.RegisterHandler(888, ServerReceiveMessage);
+        /*NetworkServer.Listen(25000);
+        NetworkServer.RegisterHandler(888, ServerReceiveMessage);*/
+        tcpListenerThread = new Thread(new ThreadStart(ListenForIncommingRequests));
+        tcpListenerThread.IsBackground = true;
+        tcpListenerThread.Start();
         // -------------------------
 
         /* if (Application.isEditor)
@@ -57,7 +85,7 @@ public class MusicCode : MonoBehaviour
          files = info.GetFiles();*/
 
         //Charge liste string
-        
+
 
         foreach (string chemin in fileList)
         {
@@ -66,6 +94,7 @@ public class MusicCode : MonoBehaviour
             item.name = Path.GetFileNameWithoutExtension(chemin);
             // item.GetComponentInChildren<Text>().text = Path.GetFileNameWithoutExtension(chemin) + "     " + 0;
             item.GetComponentInChildren<Text>().text = Path.GetFileNameWithoutExtension(chemin);
+            listSongsNames += Path.GetFileNameWithoutExtension(chemin) + ";";
           //  item.GetComponentInChildren<Text>().text = "0";
             item.transform.parent = container.transform;
         }
@@ -205,7 +234,7 @@ public class MusicCode : MonoBehaviour
 
 
     //Partie Réseau ----------------------------------------------------------------------------
-
+    /*
     private void ServerReceiveMessage(NetworkMessage message)
     {
         StringMessage msg = new StringMessage();
@@ -240,5 +269,88 @@ public class MusicCode : MonoBehaviour
         {
             voteCounts[music] += 1;
         }
+    }*/
+
+
+
+    /// <summary> 	
+    /// Runs in background TcpServerThread; Handles incomming TcpClient requests 	
+    /// </summary> 	
+    private void ListenForIncommingRequests()
+    {
+        try
+        {
+            // Create listener on localhost port 8052. 			
+            tcpListener = new TcpListener(IPAddress.Parse("172.30.40.19"), 8052);
+            tcpListener.Start();
+            Debug.Log("Server is listening");
+            Byte[] bytes = new Byte[1024];
+            while (true)
+            {
+                using (connectedTcpClient = tcpListener.AcceptTcpClient())
+                {
+                    // Get a stream object for reading 					
+                    using (NetworkStream stream = connectedTcpClient.GetStream())
+                    {
+                        int length;
+                        // Read incomming stream into byte arrary. 						
+                        while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
+                        {
+                            var incommingData = new byte[length];
+                            Array.Copy(bytes, 0, incommingData, 0, length);
+                            // Convert byte array to string message. 							
+                            string clientMessage = Encoding.ASCII.GetString(incommingData);
+                            Debug.Log(clientMessage);
+                            if (clientMessage == "salut") { Debug.Log("+1"); }
+                        }
+                    }
+                }
+            }
+        }
+        catch (SocketException socketException)
+        {
+            Debug.Log("SocketException " + socketException.ToString());
+        }
     }
+    /// <summary> 	
+    /// Send message to client using socket connection. 	
+    /// </summary> 	
+    private void SendMessage()
+    {
+        if (connectedTcpClient == null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Get a stream object for writing. 			
+            NetworkStream stream = connectedTcpClient.GetStream();
+            if (stream.CanWrite)
+            {
+                //string serverMessage = "This is a message from your server.";
+                // Convert string message to byte array.                 
+                byte[] serverMessageAsByteArray = Encoding.ASCII.GetBytes(listSongsNames);
+                // Write byte array to socketConnection stream.               
+                stream.Write(serverMessageAsByteArray, 0, serverMessageAsByteArray.Length);
+                Debug.Log("Server sent his message - should be received by client");
+            }
+        }
+        catch (SocketException socketException)
+        {
+            Debug.Log("Socket exception: " + socketException);
+        }
+    }
+
+
+    // Update is called once per frame
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            SendMessage();
+        }
+    }
+
+
 }
