@@ -88,7 +88,7 @@ public class Client : MonoBehaviour
     {
         try
         {
-            socketConnection = new TcpClient("172.30.40.19", 8052);
+            socketConnection = new TcpClient("localhost", 8052);
             Byte[] bytes = new Byte[1024];
             while (true)
             {

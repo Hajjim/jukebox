@@ -39,10 +39,12 @@ public class MusicCode : MonoBehaviour
     //private FileInfo[] files;
     // string path = "./"; // chemin RELATIF d'où l'application COMPILEE tourne. Pas le mode editeur sur unity. (donc quand j'aurai l'apk, ça se trouvera sur l'endroit même)
     // -----
-    static string path = "C:/Users/hajji/OneDrive/Projects/"; // C:\Users\hajji\Documents\
+    static string path = "C:/Users/hajji/OneDrive/Projects"; // C:\Users\hajji\Documents\
     string[] fileList = Directory.GetFiles(path, "*.wav", SearchOption.TopDirectoryOnly); //affichage par ordre alphabétique
     string listSongsNames;
     AudioClip musicAJouer;
+
+    private string msg = null;
 
 
     #region private members 	
@@ -281,7 +283,7 @@ public class MusicCode : MonoBehaviour
         try
         {
             // Create listener on localhost port 8052. 			
-            tcpListener = new TcpListener(IPAddress.Parse("172.30.40.19"), 8052);
+            tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 8052);
             tcpListener.Start();
             Debug.Log("Server is listening");
             Byte[] bytes = new Byte[1024];
@@ -301,7 +303,7 @@ public class MusicCode : MonoBehaviour
                             // Convert byte array to string message. 							
                             string clientMessage = Encoding.ASCII.GetString(incommingData);
                             Debug.Log(clientMessage);
-                            if (clientMessage == "salut") { Debug.Log("+1"); }
+                            msg = clientMessage;
                         }
                     }
                 }
@@ -333,7 +335,7 @@ public class MusicCode : MonoBehaviour
                 byte[] serverMessageAsByteArray = Encoding.ASCII.GetBytes(listSongsNames);
                 // Write byte array to socketConnection stream.               
                 stream.Write(serverMessageAsByteArray, 0, serverMessageAsByteArray.Length);
-                Debug.Log("Server sent his message - should be received by client");
+                Debug.Log("Le serveur a envoyé son message - cela devrait être reçu par le client");
             }
         }
         catch (SocketException socketException)
@@ -346,9 +348,24 @@ public class MusicCode : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        
         if (Input.GetKeyDown(KeyCode.Space))
         {
             SendMessage();
+        }
+        if (msg != null)
+        {
+            switch (msg)
+            {
+                case "connected":
+                    SendMessage();
+                    msg = null;
+                    break;
+                default:
+                    Debug.Log(msg);
+                    msg = null;
+                    break;
+            }
         }
     }
 
