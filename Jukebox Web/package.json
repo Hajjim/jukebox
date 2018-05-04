@@ -1,0 +1,10 @@
+{
+  "name": "JukeboxWeb",
+  "version": "0.0.1",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "express": "^4.16.3",
+    "extends": "0.0.4",
+    "twig": "^1.11.0"
+  }
+}

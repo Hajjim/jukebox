@@ -11,8 +11,13 @@ using UnityEngine.UI;
 
 public class Client : MonoBehaviour
 {
-    public Text TextList;
-   // static NetworkClient client;
+    public GameObject itemPrefab; //ma liste d'élements clips
+
+    private GameObject container;
+    private GameObject item;
+    String[] musics = null;
+    private bool pooled = false;
+    // static NetworkClient client;
     #region private members 	
     private TcpClient socketConnection;
     private Thread clientReceiveThread;
@@ -26,26 +31,50 @@ public class Client : MonoBehaviour
         GUI.Box(new Rect(10, Screen.height - 50, 100, 50), ipaddress);
         //GUI.Label(new Rect(20, Screen.height - 30, 100, 20), "Status:" + client.isConnected);
 
-       /* if (!client.isConnected)
-        {
-            if (GUI.Button(new Rect(10, 10, 200, 180), "Connect"))
-            {
-                Connect();
-                ConnectToTcpServer();
-            } 
-        }*/
+        /* if (!client.isConnected)
+         {
+             if (GUI.Button(new Rect(10, 10, 200, 180), "Connect"))
+             {
+                 Connect();
+                 ConnectToTcpServer();
+             } 
+         }*/
 
         if (GUI.Button(new Rect(10, 10, 250, 250), "TOUCH"))
         {
-            SendMessage();
+            SendMsg("Hello");
         }
     }
 
     // Use this for initialization
     void Start()
     {
+        container = GameObject.Find("Elements");
         ConnectToTcpServer();
-       // client = new NetworkClient();
+        // client = new NetworkClient();
+    }
+
+    private void Update()
+    {
+        if (musics != null && musics.Length > 0 && pooled == false)
+        {
+            Debug.Log("Got musics");
+            foreach (string music in musics)
+            {
+                Debug.Log(music);
+                item = Instantiate(itemPrefab);
+                item.SetActive(true);
+                item.name = music;
+                // item.GetComponentInChildren<Text>().text = Path.GetFileNameWithoutExtension(chemin) + "     " + 0;
+                Text txt = item.GetComponentInChildren<Text>();
+                txt.text = music;
+                Button itemBtn = item.GetComponent<Button>();
+                itemBtn.onClick.AddListener(() => SendMusic(txt));
+                //  item.GetComponentInChildren<Text>().text = "0";
+                item.transform.parent = container.transform;
+            }
+            pooled = true;
+        }
     }
 
     //void Connect()
@@ -74,6 +103,7 @@ public class Client : MonoBehaviour
             clientReceiveThread = new Thread(new ThreadStart(ListenForData));
             clientReceiveThread.IsBackground = true;
             clientReceiveThread.Start();
+            SendMsg("connected");
             Debug.Log("Client is listening");
         }
         catch (Exception e)
@@ -88,7 +118,7 @@ public class Client : MonoBehaviour
     {
         try
         {
-            socketConnection = new TcpClient("localhost", 8052);
+            socketConnection = new TcpClient("127.0.0.1", 8052);
             Byte[] bytes = new Byte[1024];
             while (true)
             {
@@ -103,10 +133,16 @@ public class Client : MonoBehaviour
                         Array.Copy(bytes, 0, incommingData, 0, length);
                         // Convert byte array to string message. 						
                         serverMessage = Encoding.ASCII.GetString(incommingData);
+
                         Debug.Log(serverMessage);
                         //TextList.text = serverMessage;
+                        String value = serverMessage;
+                        Char delimiter = ';';
+                        musics = value.Split(delimiter);
+                        Debug.Log(musics);
+
                     }
-                   
+
                 }
             }
 
@@ -117,7 +153,7 @@ public class Client : MonoBehaviour
         }
     }
 
-    private void SendMessage()
+    private void SendMsg(string msg)
     {
         if (socketConnection == null)
         {
@@ -129,7 +165,7 @@ public class Client : MonoBehaviour
             NetworkStream stream = socketConnection.GetStream();
             if (stream.CanWrite)
             {
-                string clientMessage = "salut";
+                string clientMessage = msg;
                 // Convert string message to byte array.                 
                 byte[] clientMessageAsByteArray = Encoding.ASCII.GetBytes(clientMessage);
                 // Write byte array to socketConnection stream.                 
@@ -143,12 +179,11 @@ public class Client : MonoBehaviour
         }
     }
 
-    //void Update()
-    //{
-    //    if (Input.GetKeyDown(KeyCode.Space))
-    //    {
-    //        SendMessage();
-    //    }
-    //}
+    public void SendMusic(Text music)
+    {
+        Debug.Log(music.text);
+        SendMsg(music.text);
+    }
+
 
 }
