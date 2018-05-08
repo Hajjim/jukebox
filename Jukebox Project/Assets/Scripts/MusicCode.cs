@@ -2,15 +2,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.Networking;
-using UnityEngine.Networking.NetworkSystem;
-using UnityEngine.Audio;
 using System.IO;
-using System.Threading;
 using System.Net.Sockets;
 using System.Net;
 using System;
-using System.Text;
+using System.Linq;
 
 [RequireComponent(typeof(AudioSource))]
 public class MusicCode : MonoBehaviour
@@ -33,6 +29,7 @@ public class MusicCode : MonoBehaviour
     private int secondes;
     private int minutes;
     private int numbermusic = 0;
+    private int id = 0;
     WWW url;
 
     // string path = "./"; // chemin RELATIF d'où l'application COMPILEE tourne. Pas le mode editeur sur unity. (donc quand j'aurai l'apk, ça se trouvera sur l'endroit même)
@@ -42,85 +39,306 @@ public class MusicCode : MonoBehaviour
     string listSongsNames;
     AudioClip musicAJouer;
 
-    private string msg = null;
 
-
-    #region private members 	
-    /// <summary> 	
-    /// TCPListener to listen for incomming TCP connection 	
-    /// requests. 	
-    /// </summary> 	
-    private TcpListener tcpListener;
-    /// <summary> 
-    /// Background thread for TcpServer workload. 	
-    /// </summary> 	
-    private Thread tcpListenerThread;
-    /// <summary> 	
-    /// Create handle to connected tcp client. 	
-    /// </summary> 	
-    private TcpClient connectedTcpClient;
-    #endregion
+    public int port = 6321;
+    private List<ServerClient> clients;
+    private List<ServerClient> disconnectList;
+    private TcpListener server;
+    private bool serverStarted;
 
     Dictionary<string, int> voteCount;
 
+    String[] quivote = null;
 
+    private float nextActionTime = 0.0f;
+    public float period = 3f;
+
+
+    private string levoteur;
+    private DateTime timevoteur;
+    private Dictionary<string, DateTime> lesanciens;
+    private bool found = false;
+
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
     void Start()
     {
-        voteCount = new Dictionary<string, int>();
 
         source = GetComponent<AudioSource>(); //création d'un composant Audiosource
-        //Play(); //pour démarrer directement
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
         GameObject container = GameObject.Find("Elements");
+
+        voteCount = new Dictionary<string, int>();
+        lesanciens = new Dictionary<string, DateTime>();
         // --------------------------
-        /*NetworkServer.Listen(25000);
-        NetworkServer.RegisterHandler(888, ServerReceiveMessage);*/
-        tcpListenerThread = new Thread(new ThreadStart(ListenForIncommingRequests));
-        tcpListenerThread.IsBackground = true;
-        tcpListenerThread.Start();
+
+        clients = new List<ServerClient>();
+        disconnectList = new List<ServerClient>();
+        try
+        {
+            server = new TcpListener(IPAddress.Any, port);
+            server.Start();
+
+            StartListening();
+            serverStarted = true;
+            Debug.Log("Serveur a demarré sur le port " + port.ToString());
+        }
+        catch (Exception e)
+        {
+            Debug.Log("Socket error: " + e.Message);
+        }
 
         // -------------------------
 
         //Charge liste string
         foreach (string chemin in fileList)
         {
-            Debug.Log(chemin.Replace(path, "").Replace(".wav", ""));
+            //Debug.Log(chemin.Replace(path, "").Replace(".wav", ""));
             GameObject item = Instantiate(itemPrefab) as GameObject;
             var title = Path.GetFileNameWithoutExtension(chemin);
             item.name = title;
             item.GetComponentInChildren<Text>().text = title;
-            voteCount.Add(title, 0);
+            voteCount.Add(title, 0); //pour le dico
             listSongsNames += title + ";";
-            item.transform.parent = container.transform;
-        }
+            item.transform.SetParent(container.transform);
 
-        //StartCoroutine("playMusic(numbermusic)");
+        }
 
         StartCoroutine(loadAudio(numbermusic));
 
-        // --------------------------
+    }
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
+    void Update()
+    {
+        if (!serverStarted)
+            return;
+
+        foreach (ServerClient c in clients)
+        {
+            //Est-ce que un client est encore connecté ?
+            if (!IsConnected(c.tcp))
+            {
+                c.tcp.Close();
+                disconnectList.Add(c);
+                continue;
+            }
+            // Check pour le message venant du client
+            else
+            {
+                NetworkStream s = c.tcp.GetStream();
+                if (s.DataAvailable)
+                {
+                    StreamReader reader = new StreamReader(s, true);
+                    string data = reader.ReadLine();
+
+                    if (data != null && data.Contains("%NAME"))
+                    {
+                        OnIncomingData(c, data);
+                    }
+
+                    if (data != null && data.Contains("="))
+                    {
+                        String value = data;
+                        Char delimiter = '=';
+                        quivote = value.Split(delimiter);
+                        Debug.Log(quivote[0] + quivote[1] + quivote[2]);
+
+                        // LE VOTEUR + UNIQUE + ATTENDRE //////////////////////////////////////////
+                        levoteur = quivote[1];
+                        timevoteur = DateTime.Parse(quivote[2]);
+
+                        if (lesanciens.ContainsKey(levoteur))
+                        {
+                            found = true;
+                            if (timevoteur > lesanciens[levoteur].AddSeconds(1))
+                            {
+                                lesanciens.Remove(levoteur);
+                                found = false;
+                            }
+                            else
+                            {
+                                Debug.Log(timevoteur + " < " + lesanciens[levoteur].AddSeconds(40));
+                                Debug.Log("Attend encore...");
+                            }
+                        }
+                        else
+                        {
+                            found = false;
+                        }
+
+                        if (found == false)
+                        {
+                            OnIncomingData(c, quivote[0]);
+                            switch (quivote[0])
+                            {
+                                default:
+                                    if (voteCount.ContainsKey(quivote[0]))
+                                    {
+                                        voteCount[quivote[0]] += 1;
+                                    }
+                                    Debug.Log(voteCount);
+                                    data = null;
+                                    lesanciens.Add(levoteur, timevoteur);
+                                    break;
+                            }
+                        }
+                        // CLASSEMENT //////////////////////////////////////////
+                        foreach (string title in voteCount.Keys)
+                        {
+                            var item = GameObject.Find(title);
+                            //item.GetComponentInChildren<Text>().text = title + " :    +" + voteCount[title].ToString();
+                            GameObject.Destroy(item);
+                        }
+
+                        var result = voteCount.OrderByDescending(i => i.Value).ToDictionary(i => i.Key, i => i.Value);
+                        voteCount = result;
+
+                        foreach (string title in voteCount.Keys)
+                        {
+                            GameObject newitem = Instantiate(itemPrefab) as GameObject;
+                            newitem.name = title;
+                            newitem.GetComponentInChildren<Text>().text = title + " :    +" + voteCount[title].ToString();
+                            GameObject container = GameObject.Find("Elements");
+                            newitem.transform.SetParent(container.transform);
+                        }
+
+                    }
+                }
+            }
+            
+        }
+
+
+
+
+        if (Time.time > nextActionTime) //envoie de la liste musique constant à jour
+        {
+            nextActionTime += period;
+            if (listSongsNames != null)
+            {
+                Broadcast(listSongsNames, clients);
+                // Debug.Log("Envoie de : " + listSongsNames);
+            }
+            else
+            {
+                Debug.Log("Echec de l'envoie de : " + listSongsNames);
+            }
+        }
+
+        for (int i = 0; i < disconnectList.Count - 1; i++)
+        {
+            Broadcast(disconnectList[i].clientName + " s'est déconnecté(e)... ", clients);
+
+            clients.Remove(disconnectList[i]);
+            disconnectList.RemoveAt(i);
+        }
+
+
 
 
     }
-    /*
-    private void playMusic(int i)
+
+
+    /***************************************************************************************************************************************************/
+    // ------------- RESEAU -------------------
+    /***************************************************************************************************************************************************/
+
+    private void Broadcast(string data, List<ServerClient> cl) //pour l'envoie de message à all
     {
-        if (fileList.Length > 0)
+        foreach (ServerClient c in cl)
         {
-            WWW url = new WWW("file://" + fileList[i]);
-            musicAJouer = url.GetAudioClip(false);//useless pour le 3D donc false
-
-            while (musicAJouer.loadState != AudioDataLoadState.Loaded) { }
-            musicAJouer.name = Path.GetFileNameWithoutExtension(fileList[i]); //sans l'extension .wav
-            Play(musicAJouer);
+            try
+            {
+                StreamWriter writer = new StreamWriter(c.tcp.GetStream());
+                writer.WriteLine(data);
+                writer.Flush();
+            }
+            catch (Exception e)
+            {
+                Debug.Log("Write error : " + e.Message + " to client " + c.clientName);
+            }
         }
-    }*/
+    }
+    //---------------------------------------------------------------------------//
+    private void OnIncomingData(ServerClient c, string data)
+    {
+        if (data.Contains("%NAME"))
+        {
+            c.clientName = data.Split('|')[1];
+            Broadcast(c.clientName + " nous a rejoints... ", clients);
+            return;
+        }
+        Debug.Log(c.clientName + " a voté pour : " + data);
+        Broadcast(c.clientName + " a voté pour : " + data, clients); //renvoi à tout les clients
+    }
+    //---------------------------------------------------------------------------//
+    private bool IsConnected(TcpClient c)
+    {
+        try
+        {
+            if (c != null && c.Client != null && c.Client.Connected)
+            {
+                if (c.Client.Poll(0, SelectMode.SelectRead)) //pour déterminer l'état du socket avec Read (voir doc)
+                {
+                    return !(c.Client.Receive(new byte[1], SocketFlags.Peek) == 0);
+                }
+                return true;
+            }
+            else
+                return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
+    //---------------------------------------------------------------------------//
+    private void AcceptTcpClient(IAsyncResult ar)
+    {
+        TcpListener listener = (TcpListener)ar.AsyncState;
+
+        clients.Add(new ServerClient(listener.EndAcceptTcpClient(ar)));
+        StartListening();
+
+        //Envoie un message à tout le monde, dit quand quelqu'un est connecté
+        Broadcast("%NAME", new List<ServerClient>() { clients[clients.Count - 1] });
+        Broadcast(listSongsNames, clients);
+        Debug.Log("Envoie de : " + listSongsNames);
+    }
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
+    //pour chaque client
+    public class ServerClient
+    {
+        public TcpClient tcp;
+        public string clientName;
+
+        public ServerClient(TcpClient clientSocket)
+        {
+            clientName = "Une personne mystérieuse";
+            tcp = clientSocket;
+
+        }
+    }
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
+    private void StartListening()
+    {
+        server.BeginAcceptTcpClient(AcceptTcpClient, server);
+
+    }
+
+
+    /***************************************************************************************************************************************************/
+    // ------------- MUSIC -------------------
+    /***************************************************************************************************************************************************/
     IEnumerator loadAudio(int i)
     {
         if (fileList.Length > 0)
         {
-            WWW url = new WWW("file://" + fileList[i]);
+            WWW url = new WWW("file://" + fileList[i]); //fileList[i]
             yield return url;
             musicAJouer = url.GetAudioClip(false);
             musicAJouer.name = Path.GetFileNameWithoutExtension(fileList[i]); //sans l'extension .wav
@@ -199,153 +417,28 @@ public class MusicCode : MonoBehaviour
         //ensuite j'appel ma variable minute seconde qui utilise le playTimer = temps déjà joué
         clipActuelTime.text = minutes + ":" + secondes.ToString("D2");
     }
+    /***************************************************************************************************************************************************/
+    /***************************************************************************************************************************************************/
 
 
-    //Partie Réseau ----------------------------------------------------------------------------
-    /*
-    private void ServerReceiveMessage(NetworkMessage message)
+
+    public class MusicEntryData : MonoBehaviour
     {
-        StringMessage msg = new StringMessage();
-        msg.value = message.ReadMessage<StringMessage>().value;
-        Debug.Log(msg);
-        Debug.Log(msg.value);
-        switch (msg.value)
+
+        public int Score;
+        public string Name;
+
+        public Text text;
+
+        void OnEnable()
         {
-            case "mute":
-                Mute();
-                break;
-            case "vote":
-                Vote();
-                break;
+            this.MoveToScreen();
         }
+
+        public void MoveToScreen()
+        {
+            text.text = string.Format("{0} :   +{1}", Name, Score);
+        }
+
     }
-
-    public void Mute()
-    {
-        if (source.isPlaying)
-        {
-            source.mute = !source.mute;
-        }
-    }
-
-    
-    Dictionary<string, int> voteCounts;
-
-    public void Vote()
-    {
-        foreach (string music in fileList)
-        {
-            voteCounts[music] += 1;
-        }
-    }*/
-
-
-
-    /// <summary> 	
-    /// Runs in background TcpServerThread; Handles incomming TcpClient requests 	
-    /// </summary> 	
-    private void ListenForIncommingRequests()
-    {
-        try
-        {
-            // Create listener on localhost port 8052.
-            tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 8052);
-            tcpListener.Start();
-            Debug.Log("Server is listening");
-            Byte[] bytes = new Byte[1024];
-            while (true)
-            {
-                using (connectedTcpClient = tcpListener.AcceptTcpClient())
-                {
-                    // Get a stream object for reading 					
-                    using (NetworkStream stream = connectedTcpClient.GetStream())
-                    {
-                        int length;
-                        // Read incomming stream into byte arrary. 						
-                        while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
-                        {
-                            var incommingData = new byte[length];
-                            Array.Copy(bytes, 0, incommingData, 0, length);
-                            // Convert byte array to string message. 							
-                            string clientMessage = Encoding.ASCII.GetString(incommingData);
-                            Debug.Log(clientMessage);
-                            msg = clientMessage;
-                        }
-                    }
-                }
-            }
-        }
-        catch (SocketException socketException)
-        {
-            Debug.Log("SocketException " + socketException.ToString());
-        }
-    }
-    /// <summary> 	
-    /// Send message to client using socket connection. 	
-    /// </summary> 	
-    private void SendMessage()
-    {
-        if (connectedTcpClient == null)
-        {
-            return;
-        }
-
-        try
-        {
-            // Get a stream object for writing. 			
-            NetworkStream stream = connectedTcpClient.GetStream();
-            if (stream.CanWrite)
-            {
-                //string serverMessage = "This is a message from your server.";
-                // Convert string message to byte array.                 
-                byte[] serverMessageAsByteArray = Encoding.ASCII.GetBytes(listSongsNames);
-                // Write byte array to socketConnection stream.               
-                stream.Write(serverMessageAsByteArray, 0, serverMessageAsByteArray.Length);
-                Debug.Log("Server sent his message - should be received by client");
-            }
-        }
-        catch (SocketException socketException)
-        {
-            Debug.Log("Socket exception: " + socketException);
-        }
-    }
-
-
-    // Update is called once per frame
-    void Update()
-    {
-
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            SendMessage();
-        }
-        if (msg != null)
-        {
-            switch (msg)
-            {
-                case "connected":
-                    SendMessage();
-                    msg = null;
-                    break;
-                default:
-                    Debug.Log(msg);
-                    if (voteCount.ContainsKey(msg))
-                    {
-                        voteCount[msg] += 1;
-                    }
-                    Debug.Log(voteCount);
-                    msg = null;
-                    break;
-            }
-        }
-
-        foreach (string chemin in fileList)
-        {
-            var title = Path.GetFileNameWithoutExtension(chemin);
-            var item = GameObject.Find(title);
-            item.GetComponentInChildren<Text>().text = title + " -    +" + voteCount[title].ToString();
-        }
-    }
-
-
 }

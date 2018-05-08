@@ -8,54 +8,49 @@ using System.Threading;
 using System;
 using System.Text;
 using UnityEngine.UI;
+using System.IO;
 
 public class Client : MonoBehaviour
 {
     public GameObject itemPrefab; //ma liste d'élements clips
+    public GameObject chatContainer;
+    public GameObject messagePrefab;
 
     private GameObject container;
     private GameObject item;
     String[] musics = null;
     private bool pooled = false;
-    // static NetworkClient client;
-    #region private members 	
-    private TcpClient socketConnection;
-    private Thread clientReceiveThread;
-    private string serverMessage = "";
-    #endregion
 
-    void OnGUI()
-    {
-        //Graphiquement, je met le status + connexion 
-        string ipaddress = Network.player.ipAddress;
-        GUI.Box(new Rect(10, Screen.height - 50, 100, 50), ipaddress);
-        //GUI.Label(new Rect(20, Screen.height - 30, 100, 20), "Status:" + client.isConnected);
+    private bool socketReady;
+    private TcpClient socket;
+    private NetworkStream stream;
+    private StreamWriter writer;
+    private StreamReader reader;
 
-        /* if (!client.isConnected)
-         {
-             if (GUI.Button(new Rect(10, 10, 200, 180), "Connect"))
-             {
-                 Connect();
-                 ConnectToTcpServer();
-             } 
-         }*/
+    public string clientName;
 
-        if (GUI.Button(new Rect(10, 10, 250, 250), "TOUCH"))
-        {
-            SendMsg("Hello");
-        }
-    }
-
-    // Use this for initialization
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
     void Start()
     {
         container = GameObject.Find("Elements");
-        ConnectToTcpServer();
-        // client = new NetworkClient();
+        //ConnectToTcpServer();
+        ConnectToServer();
     }
-
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
     private void Update()
     {
+        if (socketReady)
+        {
+            if (stream.DataAvailable)
+            {
+                string data = reader.ReadLine();
+                if (data != null)
+                    OnIncomingData(data);
+            }
+        }
+
         if (musics != null && musics.Length > 0 && pooled == false)
         {
             Debug.Log("Got musics");
@@ -69,121 +64,110 @@ public class Client : MonoBehaviour
                 Text txt = item.GetComponentInChildren<Text>();
                 txt.text = music;
                 Button itemBtn = item.GetComponent<Button>();
-                itemBtn.onClick.AddListener(() => SendMusic(txt));
+                itemBtn.onClick.AddListener(() => SendMusic(txt)); //Envoie de la musique ici
                 //  item.GetComponentInChildren<Text>().text = "0";
                 item.transform.parent = container.transform;
             }
             pooled = true;
         }
     }
-
-    //void Connect()
-    //{
-    //    // Je met l'ipv4 ici (vérifier le wifi)
-    //    client.Connect("127.0.0.1", 25000);
-    //}
-
-    /*public void SendCommand(string command)
+    /***************************************************************************************************************************************************/
+    // ------------- RESEAU -------------------
+    /***************************************************************************************************************************************************/
+    private void OnIncomingData(string data)
     {
-        if (client.isConnected)
+        if (data == "%NAME")
         {
-            StringMessage msg = new StringMessage();
-            msg.value = command;
-            client.Send(888, msg);
+            Send("%NAME|" + clientName); //j'envoie le pseudo
+            return;
         }
-    }*/
+        Debug.Log(data);
+        GameObject go = Instantiate(messagePrefab, chatContainer.transform); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! A REMPLACER JUST TEXTE
+        go.GetComponentInChildren<Text>().text = data;
 
-    /// <summary> 	
-    /// Setup socket connection. 	
-    /// </summary> 	
-    private void ConnectToTcpServer()
+        if (data.Contains(";"))
+        {
+            Debug.Log("Spliting....");
+            String value = data;
+            Char delimiter = ';';
+            musics = value.Split(delimiter);
+            Debug.Log(musics);
+        }
+    }
+    //---------------------------------------------------------------------------//
+    public void ConnectToServer()
     {
+        //Si déja connecté, ignore cette fonction
+        if (socketReady)
+            return;
+
+        //Valeur par defaut pour hôte/port 
+        string host = "192.168.0.15";//"127.0.0.1";  => Ipconfig pas oublié de check
+        int port = 6321;
+        //....... Idée : Créé un menu pour changer hôte ? Port ? A voir...
+
         try
         {
-            clientReceiveThread = new Thread(new ThreadStart(ListenForData));
-            clientReceiveThread.IsBackground = true;
-            clientReceiveThread.Start();
-            SendMsg("connected");
-            Debug.Log("Client is listening");
+            socket = new TcpClient(host, port);
+            stream = socket.GetStream();
+            writer = new StreamWriter(stream);
+            reader = new StreamReader(stream);
+            socketReady = true;
+
         }
         catch (Exception e)
         {
-            Debug.Log("On client connect exception " + e);
+            Debug.Log("Socket error : " + e.Message);
         }
     }
-    /// <summary> 	
-    /// Runs in background clientReceiveThread; Listens for incomming data. 	
-    /// </summary>     
-    private void ListenForData()
+    //---------------------------------------------------------------------------//
+
+    private void Send(string data)
     {
-        try
-        {
-            socketConnection = new TcpClient("127.0.0.1", 8052);
-            Byte[] bytes = new Byte[1024];
-            while (true)
-            {
-                // Get a stream object for reading 				
-                using (NetworkStream stream = socketConnection.GetStream())
-                {
-                    int length;
-                    // Read incomming stream into byte arrary. 					
-                    while ((length = stream.Read(bytes, 0, bytes.Length)) != 0)
-                    {
-                        var incommingData = new byte[length];
-                        Array.Copy(bytes, 0, incommingData, 0, length);
-                        // Convert byte array to string message. 						
-                        serverMessage = Encoding.ASCII.GetString(incommingData);
-
-                        Debug.Log(serverMessage);
-                        //TextList.text = serverMessage;
-                        String value = serverMessage;
-                        Char delimiter = ';';
-                        musics = value.Split(delimiter);
-                        Debug.Log(musics);
-
-                    }
-
-                }
-            }
-
-        }
-        catch (SocketException socketException)
-        {
-            Debug.Log("Socket exception: " + socketException);
-        }
-    }
-
-    private void SendMsg(string msg)
-    {
-        if (socketConnection == null)
-        {
+        if (!socketReady)
             return;
-        }
-        try
-        {
-            // Get a stream object for writing. 			
-            NetworkStream stream = socketConnection.GetStream();
-            if (stream.CanWrite)
-            {
-                string clientMessage = msg;
-                // Convert string message to byte array.                 
-                byte[] clientMessageAsByteArray = Encoding.ASCII.GetBytes(clientMessage);
-                // Write byte array to socketConnection stream.                 
-                stream.Write(clientMessageAsByteArray, 0, clientMessageAsByteArray.Length);
-                Debug.Log("Client sent his message - should be received by server");
-            }
-        }
-        catch (SocketException socketException)
-        {
-            Debug.Log("Socket exception: " + socketException);
-        }
-    }
 
-    public void SendMusic(Text music)
+        writer.WriteLine(data);
+        writer.Flush();
+
+    }
+    //---------------------------------------------------------------------------//
+    public void OnSendButton()
+    {
+        string message = GameObject.Find("SendInput").GetComponent<InputField>().text;
+        Send(message);
+    }
+    //---------------------------------------------------------------------------//
+
+    public void SendMusic(Text music) //pour l'avoir en format Text => contenair 
     {
         Debug.Log(music.text);
-        SendMsg(music.text);
+        Send(music.text);
     }
+    //---------------------------------------------------------------------------//
+    //---------------------------------------------------------------------------//
+    // On gère la deconnection 
+    private void CloseSocket()
+    {
+        if (!socketReady)
+            return;
 
+        writer.Close();
+        reader.Close();
+        socket.Close();
+        socketReady = false;
+
+    }
+    //---------------------------------------------------------------------------//
+    private void OnApplicationQuit()
+    {
+        CloseSocket();
+    }
+    //---------------------------------------------------------------------------//
+    private void OnDisable()
+    {
+        CloseSocket();
+    }
+    //---------------------------------------------------------------------------//
 
 }
