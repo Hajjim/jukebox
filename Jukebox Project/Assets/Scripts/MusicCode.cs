@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Net;
 using System;
 using System.Linq;
+using System.Net.NetworkInformation;
 
 [RequireComponent(typeof(AudioSource))]
 public class MusicCode : MonoBehaviour
@@ -28,8 +29,6 @@ public class MusicCode : MonoBehaviour
     private int playTimer;
     private int secondes;
     private int minutes;
-    private int numbermusic = 0;
-    private int id = 0;
     WWW url;
 
     // string path = "./"; // chemin RELATIF d'où l'application COMPILEE tourne. Pas le mode editeur sur unity. (donc quand j'aurai l'apk, ça se trouvera sur l'endroit même)
@@ -50,20 +49,23 @@ public class MusicCode : MonoBehaviour
 
     String[] quivote = null;
 
-    private float nextActionTime = 0.0f;
-    public float period = 3f;
+    private float nextActionTime = 0.0f; //juste initialisation pour period (voir plus bas)
+    public float period = 1f;  // pour l'actualisation des listes sur les clients
+    public int Sessiontime = 5;  // pour le temps d'attente de chaque fin de session 
 
 
     private string levoteur;
     private DateTime timevoteur;
-    private Dictionary<string, DateTime> lesanciens;
+    private Dictionary<string,DateTime> lesanciens;
     private bool found = false;
+
+    public ScrollRect myScrollRect;
+
 
     //---------------------------------------------------------------------------//
     //---------------------------------------------------------------------------//
     void Start()
     {
-
         source = GetComponent<AudioSource>(); //création d'un composant Audiosource
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
         GameObject container = GameObject.Find("Elements");
@@ -97,14 +99,15 @@ public class MusicCode : MonoBehaviour
             GameObject item = Instantiate(itemPrefab) as GameObject;
             var title = Path.GetFileNameWithoutExtension(chemin);
             item.name = title;
-            item.GetComponentInChildren<Text>().text = title;
             voteCount.Add(title, 0); //pour le dico
-            listSongsNames += title + ";";
+            item.GetComponentInChildren<Text>().text = title + ": (" + voteCount[title].ToString() + ")";
+            listSongsNames += title + ":  +" + voteCount[title] + ";";
             item.transform.SetParent(container.transform);
 
         }
 
-        StartCoroutine(loadAudio(numbermusic));
+        myScrollRect.verticalNormalizedPosition = 1; //pour la position
+        StartCoroutine(loadAudio()); 
 
     }
     //---------------------------------------------------------------------------//
@@ -113,7 +116,7 @@ public class MusicCode : MonoBehaviour
     {
         if (!serverStarted)
             return;
-
+         
         foreach (ServerClient c in clients)
         {
             //Est-ce que un client est encore connecté ?
@@ -132,7 +135,7 @@ public class MusicCode : MonoBehaviour
                     StreamReader reader = new StreamReader(s, true);
                     string data = reader.ReadLine();
 
-                    if (data != null && data.Contains("%NAME"))
+                    if(data!= null && data.Contains("%NAME"))
                     {
                         OnIncomingData(c, data);
                     }
@@ -149,13 +152,13 @@ public class MusicCode : MonoBehaviour
                         timevoteur = DateTime.Parse(quivote[2]);
 
                         if (lesanciens.ContainsKey(levoteur))
-                        {
-                            found = true;
+                        {                           
+                                found = true;
                             if (timevoteur > lesanciens[levoteur].AddSeconds(1))
-                            {
-                                lesanciens.Remove(levoteur);
-                                found = false;
-                            }
+                                {
+                                    lesanciens.Remove(levoteur);
+                                    found = false;
+                                }
                             else
                             {
                                 Debug.Log(timevoteur + " < " + lesanciens[levoteur].AddSeconds(40));
@@ -164,61 +167,74 @@ public class MusicCode : MonoBehaviour
                         }
                         else
                         {
-                            found = false;
+                                found = false;          
                         }
 
                         if (found == false)
                         {
-                            OnIncomingData(c, quivote[0]);
-                            switch (quivote[0])
+                            if(source.time < (source.clip.length - Sessiontime))
                             {
-                                default:
-                                    if (voteCount.ContainsKey(quivote[0]))
-                                    {
-                                        voteCount[quivote[0]] += 1;
-                                    }
-                                    Debug.Log(voteCount);
-                                    data = null;
-                                    lesanciens.Add(levoteur, timevoteur);
-                                    break;
+                                OnIncomingData(c, quivote[0]);
+                                switch (quivote[0])
+                                {
+                                    default:
+                                        if (voteCount.ContainsKey(quivote[0]))
+                                        {
+                                            voteCount[quivote[0]] += 1;
+                                        }
+                                        Debug.Log(voteCount);
+                                        data = null;
+                                        lesanciens.Add(levoteur, timevoteur);
+                                        break;
+                                }
+                            }else
+                            {
+                                Broadcast(" Session vote terminée, veuillez attendre la prochaine musique... ", clients);
                             }
                         }
-                        // CLASSEMENT //////////////////////////////////////////
-                        foreach (string title in voteCount.Keys)
-                        {
-                            var item = GameObject.Find(title);
-                            //item.GetComponentInChildren<Text>().text = title + " :    +" + voteCount[title].ToString();
-                            GameObject.Destroy(item);
-                        }
+                        
 
-                        var result = voteCount.OrderByDescending(i => i.Value).ToDictionary(i => i.Key, i => i.Value);
-                        voteCount = result;
+                         // CLASSEMENT //////////////////////////////////////////
 
-                        foreach (string title in voteCount.Keys)
-                        {
-                            GameObject newitem = Instantiate(itemPrefab) as GameObject;
-                            newitem.name = title;
-                            newitem.GetComponentInChildren<Text>().text = title + " :    +" + voteCount[title].ToString();
-                            GameObject container = GameObject.Find("Elements");
-                            newitem.transform.SetParent(container.transform);
-                        }
+                    foreach (string title in voteCount.Keys)
+                    {
+                        var item = GameObject.Find(title);
+                        //item.GetComponentInChildren<Text>().text = title + " :    +" + voteCount[title].ToString();
+                        GameObject.Destroy(item);
+                    }
 
+                    var result = voteCount.OrderByDescending(i => i.Value).ToDictionary(i => i.Key, i => i.Value);
+                    voteCount = result;
+
+                    foreach (string title in voteCount.Keys)
+                    {
+                        GameObject newitem = Instantiate(itemPrefab) as GameObject;
+                        newitem.name = title;
+                        newitem.GetComponentInChildren<Text>().text = title + ": (" + voteCount[title].ToString() + ")";
+                        GameObject container = GameObject.Find("Elements");
+                        newitem.transform.SetParent(container.transform);
                     }
                 }
-            }
-            
+
+                       
+                }
+             }
+            }      
+        listSongsNames = null;
+        foreach (string title in voteCount.Keys)
+        {
+            listSongsNames += title + ":  (" + voteCount[title] + ");";
+           // Debug.Log(listSongsNames);
         }
-
-
-
 
         if (Time.time > nextActionTime) //envoie de la liste musique constant à jour
         {
             nextActionTime += period;
+           
             if (listSongsNames != null)
             {
                 Broadcast(listSongsNames, clients);
-                // Debug.Log("Envoie de : " + listSongsNames);
+                Debug.Log("Envoie de : " + listSongsNames);
             }
             else
             {
@@ -233,12 +249,10 @@ public class MusicCode : MonoBehaviour
             clients.Remove(disconnectList[i]);
             disconnectList.RemoveAt(i);
         }
-
-
-
-
+      //  Debug.Log(source.time);
+        
     }
-
+    
 
     /***************************************************************************************************************************************************/
     // ------------- RESEAU -------------------
@@ -334,14 +348,44 @@ public class MusicCode : MonoBehaviour
     /***************************************************************************************************************************************************/
     // ------------- MUSIC -------------------
     /***************************************************************************************************************************************************/
-    IEnumerator loadAudio(int i)
+    IEnumerator WaitForVote()
+    {
+        if (source.time == source.clip.length - 5)
+        {
+            Debug.Log("attente avant seconde session de vote...");
+            yield return new WaitForSeconds(5);
+        }        
+    }
+
+    IEnumerator loadAudio()
     {
         if (fileList.Length > 0)
         {
-            WWW url = new WWW("file://" + fileList[i]); //fileList[i]
+            foreach (string title in voteCount.Keys)
+            {
+                var item = GameObject.Find(title);
+                //item.GetComponentInChildren<Text>().text = title + " :    +" + voteCount[title].ToString();
+                GameObject.Destroy(item);
+            }
+
+            var result = voteCount.OrderByDescending(i => i.Value).ToDictionary(i => i.Key, i => i.Value);
+            voteCount = result;
+
+            foreach (string title in voteCount.Keys)
+            {
+                GameObject newitem = Instantiate(itemPrefab) as GameObject;
+                newitem.name = title;
+                newitem.GetComponentInChildren<Text>().text = title + ": (" + voteCount[title].ToString() + ")";
+                GameObject container = GameObject.Find("Elements");
+                newitem.transform.SetParent(container.transform);
+            }
+            string first = voteCount.Keys.First();
+            Debug.Log(first + " : " + voteCount[first]);
+            voteCount[first] = -2;
+            WWW url = new WWW("file://" + path + "/" + first + ".wav"); //fileList[i]
             yield return url;
             musicAJouer = url.GetAudioClip(false);
-            musicAJouer.name = Path.GetFileNameWithoutExtension(fileList[i]); //sans l'extension .wav
+            //  musicAJouer.name = Path.GetFileNameWithoutExtension(fileList[i]); //sans l'extension .wav
             Play(musicAJouer);
         }
     }
@@ -358,17 +402,17 @@ public class MusicCode : MonoBehaviour
             TimerGraphique.value += Time.deltaTime; //utilisation du deltatime pour incrémenter dans le slider
             if (TimerGraphique.value >= musicAJouer.length) // && numbermusic < fileList.Length
             {
-                numbermusic++;
-                numbermusic = numbermusic % fileList.Length; // 1 2 3 ... 1 2 3 ... 1 2 3 ... (opti)         
-                Suivant(musicAJouer, numbermusic);
+                //numbermusic++;
+                //numbermusic = numbermusic % fileList.Length; // 1 2 3 ... 1 2 3 ... 1 2 3 ... (opti)         
+                Suivant(musicAJouer);
             }
             playTimer = (int)source.time; //temps depuis le début pour cette même musique
-            //ShowPlayTime();
+            ShowPlayTime(source.clip);
             yield return null; //C’est au niveau de l’instruction yield que la pause s’effectue.
         }
-        numbermusic++;
-        numbermusic = numbermusic % fileList.Length; // 1 2 3 ... 1 2 3 ... 1 2 3 ... (opti)    
-        Suivant(musicAJouer, numbermusic);
+        //numbermusic++;
+        //numbermusic = numbermusic % fileList.Length; // 1 2 3 ... 1 2 3 ... 1 2 3 ... (opti)    
+        Suivant(musicAJouer);
     }
 
 
@@ -384,27 +428,26 @@ public class MusicCode : MonoBehaviour
         //Play sur l'audio source (appartient à unity et donc différent de ma méthode Play())
         source.Play();
         //j'affiche le titre
-        ShowTitreClip(numbermusic);
+        ShowTitreClip();
         ShowPlayTime(music);
         //ma coroutine
         StartCoroutine("WaitMusicEnd");
 
     }
 
-    public void Suivant(AudioClip music, int k)
+    public void Suivant(AudioClip music)
     {
         source.Stop(); //j'arrête la source
         StopCoroutine("WaitMusicEnd"); //je met un stop sur la coroutine
         music.UnloadAudioData(); //désallouer
-        StartCoroutine(loadAudio(numbermusic));
+        StartCoroutine(loadAudio());
     }
 
 
     //méthode pour afficher le titre du clip
-    void ShowTitreClip(int k)
+    void ShowTitreClip()
     {
-        var title = Path.GetFileNameWithoutExtension(fileList[k]);
-        clipTitre.text = title;
+        clipTitre.text = voteCount.Keys.First(); ;
     }
 
     //méthode pour afficher le temps en minute seconde
@@ -417,28 +460,12 @@ public class MusicCode : MonoBehaviour
         //ensuite j'appel ma variable minute seconde qui utilise le playTimer = temps déjà joué
         clipActuelTime.text = minutes + ":" + secondes.ToString("D2");
     }
+
+
     /***************************************************************************************************************************************************/
     /***************************************************************************************************************************************************/
 
 
 
-    public class MusicEntryData : MonoBehaviour
-    {
-
-        public int Score;
-        public string Name;
-
-        public Text text;
-
-        void OnEnable()
-        {
-            this.MoveToScreen();
-        }
-
-        public void MoveToScreen()
-        {
-            text.text = string.Format("{0} :   +{1}", Name, Score);
-        }
-
-    }
 }
+
