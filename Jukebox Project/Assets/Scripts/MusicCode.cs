@@ -7,6 +7,8 @@ using System.Net.Sockets;
 using System.Net;
 using System;
 using System.Linq;
+using System.Xml;
+using System.Xml.Serialization;
 using System.Net.NetworkInformation;
 
 [RequireComponent(typeof(AudioSource))]
@@ -33,13 +35,13 @@ public class MusicCode : MonoBehaviour
 
     // string path = "./"; // chemin RELATIF d'où l'application COMPILEE tourne. Pas le mode editeur sur unity. (donc quand j'aurai l'apk, ça se trouvera sur l'endroit même)
     // -----
-    static string path = "C:/Users/hajji/OneDrive/Projects"; // C:\Users\hajji\Documents\
-    string[] fileList = Directory.GetFiles(path, "*.wav", SearchOption.TopDirectoryOnly); //affichage par ordre alphabétique
+    static string path; // C:\Users\hajji\Documents\
+    string[] fileList; //affichage par ordre alphabétique
     string listSongsNames;
     AudioClip musicAJouer;
 
 
-    public int port = 6321;
+    public int port;
     private List<ServerClient> clients;
     private List<ServerClient> disconnectList;
     private TcpListener server;
@@ -50,9 +52,10 @@ public class MusicCode : MonoBehaviour
     String[] quivote = null;
 
     private float nextActionTime = 0.0f; //juste initialisation pour period (voir plus bas)
-    public float period = 1f;  // pour l'actualisation des listes sur les clients
-    public int Sessiontime = 5;  // pour le temps d'attente de chaque fin de session 
-
+    public float period;  // pour l'actualisation des listes sur les clients
+    public int Sessiontime;  // pour le temps d'attente de chaque fin de session
+    public int malus; //apres chaque musique, le malus
+    public int timeForNextVote; // pour le temps d'attente après chaque vote par utilisateur
 
     private string levoteur;
     private DateTime timevoteur;
@@ -66,6 +69,20 @@ public class MusicCode : MonoBehaviour
     //---------------------------------------------------------------------------//
     void Start()
     {
+        var serializer = new XmlSerializer(typeof(Configuration));
+        var stream = new FileStream(Path.Combine(Application.dataPath, "config.xml"), FileMode.Open);
+        var cf = serializer.Deserialize(stream) as Configuration;
+        stream.Close();
+        Debug.Log(cf.folder);
+        path = cf.folder;
+        fileList = Directory.GetFiles(path, "*.wav", SearchOption.TopDirectoryOnly);
+        malus = cf.malus; // -2;
+        timeForNextVote = cf.timefornextvote; //40
+        Sessiontime = cf.sessiontime; // 5;
+        period = cf.period; // 1;
+        port = 6321;
+
+
         source = GetComponent<AudioSource>(); //création d'un composant Audiosource
         TimerGraphique.enabled = false; //j'empêche de toucher le slider
         GameObject container = GameObject.Find("Elements");
@@ -154,14 +171,14 @@ public class MusicCode : MonoBehaviour
                         if (lesanciens.ContainsKey(levoteur))
                         {                           
                                 found = true;
-                            if (timevoteur > lesanciens[levoteur].AddSeconds(1))
+                            if (timevoteur > lesanciens[levoteur].AddSeconds(timeForNextVote))
                                 {
                                     lesanciens.Remove(levoteur);
                                     found = false;
                                 }
                             else
                             {
-                                Debug.Log(timevoteur + " < " + lesanciens[levoteur].AddSeconds(40));
+                                Debug.Log(timevoteur + " < " + lesanciens[levoteur].AddSeconds(timeForNextVote));
                                 Debug.Log("Attend encore...");
                             }
                         }
@@ -350,7 +367,7 @@ public class MusicCode : MonoBehaviour
     /***************************************************************************************************************************************************/
     IEnumerator WaitForVote()
     {
-        if (source.time == source.clip.length - 5)
+        if (source.time == source.clip.length - Sessiontime) //5?
         {
             Debug.Log("attente avant seconde session de vote...");
             yield return new WaitForSeconds(5);
@@ -381,7 +398,7 @@ public class MusicCode : MonoBehaviour
             }
             string first = voteCount.Keys.First();
             Debug.Log(first + " : " + voteCount[first]);
-            voteCount[first] = -2;
+            voteCount[first] = malus;
             WWW url = new WWW("file://" + path + "/" + first + ".wav"); //fileList[i]
             yield return url;
             musicAJouer = url.GetAudioClip(false);

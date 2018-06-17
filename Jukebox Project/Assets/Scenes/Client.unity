@@ -1195,6 +1195,11 @@ MonoBehaviour:
   clipActuelTime: {fileID: 0}
   clipTotalTime: {fileID: 0}
   port: 6321
+  period: 0
+  Sessiontime: 0
+  malus: 0
+  timeForNextVote: 0
+  myScrollRect: {fileID: 0}
 --- !u!82 &1710573066
 AudioSource:
   m_ObjectHideFlags: 0
@@ -1340,12 +1345,12 @@ Prefab:
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
       propertyPath: m_AnchoredPosition.x
-      value: -496.3
+      value: 500
       objectReference: {fileID: 0}
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
       propertyPath: m_AnchoredPosition.y
-      value: 164.6
+      value: -34.3
       objectReference: {fileID: 0}
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
@@ -1360,7 +1365,7 @@ Prefab:
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
       propertyPath: m_AnchorMin.x
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
@@ -1370,7 +1375,7 @@ Prefab:
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
       propertyPath: m_AnchorMax.x
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224082983082093530, guid: 77d1a445ff7237243b26650e0ab9e9f6,
         type: 2}
@@ -1386,6 +1391,10 @@ Prefab:
         type: 2}
       propertyPath: m_Pivot.y
       value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1477008905176398, guid: 77d1a445ff7237243b26650e0ab9e9f6, type: 2}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: 77d1a445ff7237243b26650e0ab9e9f6, type: 2}

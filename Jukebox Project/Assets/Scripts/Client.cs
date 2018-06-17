@@ -89,30 +89,6 @@ public class Client : MonoBehaviour
     // ------------- RESEAU -------------------
     /***************************************************************************************************************************************************/
 
-    //public void ShowNetworkInterfaces()
-    //{
-    //    IPGlobalProperties computerProperties = IPGlobalProperties.GetIPGlobalProperties();
-    //    NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
-
-    //    foreach (NetworkInterface adapter in nics)
-    //    {
-    //        PhysicalAddress address = adapter.GetPhysicalAddress();
-    //        byte[] bytes = address.GetAddressBytes();
-    //        string mac = null;
-    //        for (int i = 0; i < bytes.Length; i++)
-    //        {
-    //            mac = string.Concat(mac + (string.Format("{0}", bytes[i].ToString("X2"))));
-    //            if (i != bytes.Length - 1)
-    //            {
-    //                mac = string.Concat(mac + "-");
-    //            }
-    //        }
-    //        info += mac + "\n";
-
-    //        info += "\n";
-    //    }
-    //    Debug.Log(info);
-    //}
 
     void OnGUI()
     {
@@ -167,7 +143,7 @@ public class Client : MonoBehaviour
             return;
 
         //Valeur par defaut pour hôte/port 
-        string host = "192.168.0.15";//"127.0.0.1";  => Ipconfig pas oublié de check
+        string host = ClientStart.ipstart; //"192.168.0.15";//"127.0.0.1";  => Ipconfig pas oublié de check
         int port = 6321;
         //....... Idée : Créé un menu pour changer hôte ? Port ? A voir...
 
@@ -242,13 +218,3 @@ public class Client : MonoBehaviour
     //---------------------------------------------------------------------------//
 
 }
-/*
-public static class ArrayExtensions
-{
-    // This is an extension method. RandomItem() will now exist on all arrays.
-    public static T RandomItem<T>(this T[] array)
-    {
-        return array[UnityEngine.Random.Range(0, array.Length)];
-    }
-}
-*/

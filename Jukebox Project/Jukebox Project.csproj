@@ -302,9 +302,11 @@
   <ItemGroup>
     <Compile Include="Assets\Scripts\Client.cs" />
     <Compile Include="Assets\Scripts\ClientStart.cs" />
+    <Compile Include="Assets\Scripts\Configuration.cs" />
     <Compile Include="Assets\Scripts\MusicCode.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\config.xml" />
     <None Include="C:\Users\hajji\AppData\Local\Unity\cache\packages\packages.unity.com\com.unity.package-manager-ui@1.8.8\Editor\Resources\Styles\Main_Dark.uss" />
     <None Include="C:\Users\hajji\AppData\Local\Unity\cache\packages\packages.unity.com\com.unity.package-manager-ui@1.8.8\Editor\Resources\Styles\Main_Light.uss" />
     <None Include="C:\Users\hajji\AppData\Local\Unity\cache\packages\packages.unity.com\com.unity.package-manager-ui@1.8.8\Editor\Resources\Templates\Alert.uxml" />

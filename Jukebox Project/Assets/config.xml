@@ -1,0 +1,14 @@
+<configuration>
+
+<!-- Le chemin dans lequel se trouve vos musiques : -->
+    <folder>D:/Musique</folder>
+<!-- Le malus à chaque fois qu'une musique termine de jouer : -->	
+	<malus>-2</malus>
+<!-- Le temps d'attente pour un second vote du même utilisateur : -->
+  <timefornextvote>2</timefornextvote>
+<!-- Le temps pour empêcher de voter en fin de musique (par seconde): -->
+	<sessiontime>5</sessiontime>
+<!-- La période d'actualisation de la liste chez les clients : -->
+	<period>1</period>
+	
+</configuration>
