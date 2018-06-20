@@ -1,4 +1,8 @@
-Le fichier XML permet de configurer vos préférences.
+Information importante :
+------------------------
+
+Le fichier XML(config) permet de configurer vos préférences, 
+il se trouve dans le fichier JukeBox_Data du repertoire ''TheJukeBox .Exe''.
 
 -------------
 Mode d'emploi :
